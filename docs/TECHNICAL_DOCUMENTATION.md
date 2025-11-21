@@ -1,9 +1,10 @@
 # Dance Request App - Technical Documentation
 
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Last Updated:** November 20, 2025  
 **Framework:** Vue 3 (Composition API)  
 **Build Tool:** Vite  
+**Backend:** Firebase (Firestore + Authentication)  
 **Styling:** Tailwind CSS v4.1.17
 
 ---
@@ -41,9 +42,10 @@ App.vue (Root)
 ### Design Principles
 
 - **Mobile-First**: Optimized for phone screens with touch-friendly UI
-- **Real-Time Ready**: Prepared for Firebase Firestore real-time updates
+- **Real-Time**: Firebase Firestore with live data synchronization across clients
 - **Component Isolation**: Each component is self-contained with minimal dependencies
-- **Reactive State**: Uses Vue 3's Composition API with reactive refs
+- **Reactive State**: Uses Vue 3's Composition API with reactive refs and composables
+- **Service Layer**: Firebase operations abstracted into dedicated service modules
 - **Inline Styling**: Currently uses inline styles for rapid prototyping (to be migrated to Tailwind utility classes)
 
 ---
@@ -84,16 +86,22 @@ dance-request-app/
 │   │   ├── RequestQueue.vue      # Main view component
 │   │   ├── RequestCard.vue       # Individual request display
 │   │   └── NewRequestModal.vue   # Request submission form
+│   ├── composables/
+│   │   ├── useAuth.js            # Authentication composable
+│   │   └── useRequests.js        # Requests composable with real-time updates
 │   ├── firebase/
-│   │   └── config.js             # Firebase initialization
+│   │   ├── config.js             # Firebase initialization
+│   │   ├── auth.js               # Authentication service
+│   │   └── requests.js           # Requests CRUD operations
 │   ├── assets/                   # Static assets (images, icons)
-│   ├── App.vue                   # Root component
+│   ├── App.vue                   # Root component with auth initialization
 │   ├── main.js                   # Application entry point
 │   └── style.css                 # Global styles (Tailwind import)
 ├── docs/
 │   ├── Project Outline.md        # Product requirements
 │   ├── README.md                 # User documentation
 │   ├── SETUP.md                  # Setup instructions
+│   ├── FIREBASE_BACKEND_PLAN.md  # Backend implementation plan
 │   └── TECHNICAL_DOCUMENTATION.md # This file
 ├── tests/
 │   ├── new-request-modal.spec.js # Modal tests
@@ -114,23 +122,36 @@ dance-request-app/
 
 ### 1. App.vue
 
-**Purpose:** Root component that mounts the main application view.
+**Purpose:** Root component that initializes authentication and mounts the main application view.
 
 **Implementation:**
-- Minimal wrapper component
-- Imports and renders `RequestQueue.vue`
-- No state or logic
+- Initializes Firebase Authentication on mount
+- Auto-signs in users anonymously if not authenticated
+- Shows loading state during auth initialization
+- Renders `RequestQueue.vue` after auth is ready
 
 **Code Structure:**
 ```vue
 <script setup>
+import { useAuth } from './composables/useAuth'
 import RequestQueue from './components/RequestQueue.vue'
+
+// Initialize authentication (auto sign-in anonymously)
+const { loading: authLoading } = useAuth()
 </script>
 
 <template>
-  <RequestQueue />
+  <div v-if="authLoading" class="flex items-center justify-center min-h-screen">
+    <p class="text-gray-500 text-lg">Initializing...</p>
+  </div>
+  <RequestQueue v-else />
 </template>
 ```
+
+**Features:**
+- Automatic anonymous authentication for all users
+- Loading indicator during Firebase Auth initialization
+- Shared auth state across all child components
 
 ---
 
@@ -162,11 +183,15 @@ import RequestQueue from './components/RequestQueue.vue'
 #### State Management
 
 ```javascript
-// Request data (currently mock data, will connect to Firebase)
-const requests = ref([...])
-
-// Upvote tracking (session-based)
-const upvotedRequests = ref([2]) // Array of request IDs
+// Firebase composable with real-time updates
+const { 
+  requests,        // Reactive ref with live Firestore data
+  loading,         // Loading state during initial fetch
+  error,           // Error state for failed operations
+  addRequest,      // Async function to create request
+  handleUpvote,    // Async function to upvote request
+  isUpvoted        // Function to check if user upvoted
+} = useRequests()
 
 // UI state
 const showNewRequestModal = ref(false)
@@ -191,21 +216,25 @@ const sortMode = ref('likes') // 'dance' | 'song' | 'artist' | 'likes' | 'time'
 
 #### Methods
 
-**`handleUpvote(requestId)`**
-- Adds request ID to `upvotedRequests` array
-- Increments `upvote_count` on the request
-- Prevents duplicate upvotes from same session
+**`handleUpvote(requestId)`** (async)
+- Calls Firebase `upvoteRequest` service
+- Uses Firebase Auth UID for session tracking
+- Atomic Firestore update: increments count and adds UID to `upvoted_by` array
+- Prevents duplicate upvotes (checked both client-side and server-side)
+- Shows error message if operation fails
 
 **`selectSort(mode)`**
 - Updates `sortMode` to selected option
 - Closes sort menu
 - Triggers re-sort via computed property
 
-**`handleNewRequest(requestData)`**
+**`handleNewRequest(requestData)`** (async)
 - Receives form data from modal
-- Generates new request ID
-- Adds request to `requests` array
-- Closes modal
+- Calls Firebase `createRequest` service
+- Firestore auto-generates document ID
+- Uses `serverTimestamp()` for accurate timestamps
+- Closes modal on success
+- Shows error alert if operation fails
 
 #### UI Layout
 
@@ -352,58 +381,89 @@ const sortMode = ref('likes') // 'dance' | 'song' | 'artist' | 'likes' | 'time'
 
 ## Data Models
 
-### Request Object
+### Request Object (Firestore Document)
 
 ```javascript
 {
-  id: Number,                    // Unique identifier
-  dance_name: String,            // Display name for dance
-  song_title: String,            // Song title
-  artist: String,                // Artist name (optional)
-  upvote_count: Number,          // Number of upvotes (default: 0)
+  id: String,                    // Firestore auto-generated document ID
+  dance_name: String,            // Display name for dance (required)
+  song_title: String,            // Song title (defaults to dance_name)
+  artist: String,                // Artist name (optional, empty string if not provided)
+  upvote_count: Number,          // Number of upvotes (starts at 0)
+  upvoted_by: Array<String>,     // Firebase Auth UIDs of users who upvoted
   status: String,                // 'pending' | 'added_to_playlist' | 'played'
-  timestamp: Date,               // Request submission time
-  upvoted_by: Array<String>      // Future: Session IDs who upvoted
+  timestamp: Timestamp,          // Firestore serverTimestamp() for request time
 }
 ```
 
-### Current Mock Data
-
-The app currently uses 14 mock requests for UI development:
-- 4 real dances (Copperhead Road, Electric Slide, Boot Scootin' Boogie, Wobble)
-- 10 mock dances for scrolling/testing
-- All with `status: 'pending'` except Electric Slide (`added_to_playlist`)
-- Varied upvote counts (5-67)
+**Notes:**
+- `id` is the Firestore document ID, not stored in the document itself
+- `timestamp` uses Firestore serverTimestamp() for consistency across clients
+- `upvoted_by` array prevents duplicate upvotes using Firebase Auth UIDs
+- All new requests start with `upvote_count: 0` and `status: 'pending'`
 
 ---
 
 ## State Management
 
-### Current Approach: Local Component State
+### Composable-Based Architecture
 
-The app uses **Vue 3 Composition API** with reactive refs for state management:
+The app uses **Vue 3 Composition API** with Firebase-backed composables:
+
+#### useAuth Composable
 
 ```javascript
-// RequestQueue.vue
-const requests = ref([...])           // Array of request objects
-const upvotedRequests = ref([])       // Array of upvoted request IDs
-const showNewRequestModal = ref(false)
-const showSortMenu = ref(false)
-const sortMode = ref('likes')
+// Shared authentication state
+const { 
+  user,              // Reactive ref with current Firebase user
+  loading,           // Auth initialization loading state
+  error,             // Auth errors
+  isAuthenticated,   // Function returning boolean
+  isAdmin,           // Function checking if user is DJ (not anonymous)
+  userId             // Function returning current user's UID
+} = useAuth()
 ```
 
-### Session Management (Planned)
+**Features:**
+- Singleton pattern: Auth state shared across all components
+- Automatic anonymous sign-in on app load
+- Auth state persistence via Firebase SDK
+- DJ authentication support (email/password) ready for Phase 6
+
+#### useRequests Composable
+
+```javascript
+// Real-time request management
+const {
+  requests,          // Reactive ref synced with Firestore
+  loading,           // Initial data fetch loading state  
+  error,             // Request operation errors
+  sessionId,         // Current user's Firebase Auth UID
+  addRequest,        // Async function to create request
+  handleUpvote,      // Async function to upvote with duplicate prevention
+  isUpvoted          // Function to check if user upvoted a specific request
+} = useRequests()
+```
+
+**Features:**
+- Real-time Firestore subscription via `onSnapshot`
+- Automatic cleanup on component unmount
+- Optimistic UI updates with error handling
+- Firebase Auth UID-based session tracking
+
+### Session Management (Implemented)
 
 **Dancer Sessions:**
-- Generate unique session ID on first visit
-- Store in `localStorage`
-- Track upvotes per session to prevent duplicates
-- Session expires after 24 hours
+- Firebase Anonymous Authentication
+- Unique UID assigned by Firebase Auth
+- Session persists across page refreshes
+- Session stored securely by Firebase SDK
+- Upvotes tracked per Firebase Auth UID in `upvoted_by` array
 
-**DJ Authentication:**
+**DJ Authentication (Ready):**
 - Firebase Authentication with email/password
-- Protected admin routes
-- Session token stored securely
+- `isDJ()` checks if user is not anonymous
+- Admin features ready for Phase 6 implementation
 
 ---
 
@@ -429,18 +489,24 @@ const sortMode = ref('likes')
 **User Flow:**
 1. User browses request queue
 2. User clicks heart button on desired request
-3. Heart fills with color, count increments
+3. Heart fills with color, count increments (real-time)
 4. Button disables to prevent duplicate upvote
+5. Upvote persists across page refreshes
 
 **Implementation:**
-- Session tracking via `upvotedRequests` array
-- Check before upvoting: `!upvotedRequests.includes(requestId)`
-- Increment: `request.upvote_count++`
-- Disable: `:disabled="isUpvoted"` prop
+- Session tracking via Firebase Auth UID
+- Firestore atomic update: `increment(1)` and `arrayUnion(userId)`
+- Duplicate prevention:
+  - Client-side: Check `upvoted_by.includes(userId)` before calling Firebase
+  - Server-side: Firestore security rules (Phase 4)
+- Real-time sync: All clients see upvote instantly via Firestore listener
+- Disabled state: `:disabled="isUpvoted(request)"` prop
 
-**Future Enhancement:**
-- Store upvotes in Firebase with session IDs
-- Prevent upvoting across page refreshes
+**Persistence:**
+- Upvotes stored in Firestore `upvoted_by` array
+- Persists across page refreshes
+- Persists across different browsers if same Firebase Auth session
+- Works offline with Firestore offline cache
 
 ### 3. Sorting System
 
@@ -502,21 +568,20 @@ const formattedTime = computed(() => {
 - Project ID: `dance-request-app`
 - Hosting URL: `dance-request-app.web.app`
 
-### Planned Firestore Structure
+### Implemented Firestore Structure
 
 ```
-/requests (collection)
-  /{requestId} (document)
-    - dance_name: string
-    - song_title: string
-    - artist: string
-    - upvote_count: number
-    - upvoted_by: array
-    - status: string
-    - timestamp: timestamp
-    - event_id: string (future)
+/requests (collection) ✅ IMPLEMENTED
+  /{requestId} (document - Firestore auto-generated ID)
+    - dance_name: string (required)
+    - song_title: string (defaults to dance_name)
+    - artist: string (optional, empty string if not provided)
+    - upvote_count: number (starts at 0)
+    - upvoted_by: array<string> (Firebase Auth UIDs)
+    - status: string ('pending' | 'added_to_playlist' | 'played')
+    - timestamp: timestamp (serverTimestamp())
 
-/dances (collection)
+/dances (collection) - Phase 2+ (Not yet implemented)
   /{danceId} (document)
     - dance_name: string
     - song_title: string
@@ -524,26 +589,84 @@ const formattedTime = computed(() => {
     - last_requested: timestamp
     - created_at: timestamp
 
-/events (collection) - Phase 2+
+/events (collection) - Phase 3+ (Not yet implemented)
   /{eventId} (document)
     - name: string
     - date: timestamp
     - is_active: boolean
 ```
 
-### Real-Time Updates (To Implement)
+### Authentication Implementation
+
+**File:** `src/firebase/auth.js`
+
+**Functions:**
+- `signInAnonymously()` - Auto sign-in for dancers ✅
+- `signInWithEmailAndPassword(email, password)` - DJ login (ready for Phase 6)
+- `signOut()` - Sign out current user
+- `getCurrentUser()` - Get current Firebase user
+- `isDJ()` - Check if user is authenticated with email (not anonymous)
+- `subscribeToAuthChanges(callback)` - Listen for auth state changes
+
+**Authentication Flow:**
+1. App loads → `useAuth` composable initializes
+2. Subscribe to `onAuthStateChanged`
+3. If no user → automatically call `signInAnonymously()`
+4. User receives Firebase Auth UID
+5. All operations use this UID for tracking
+
+### Real-Time Updates (Implemented)
+
+**File:** `src/firebase/requests.js`
 
 ```javascript
-import { onSnapshot, collection } from 'firebase/firestore'
+import { onSnapshot, collection, query, orderBy } from 'firebase/firestore'
 
-// Listen for real-time updates
-onSnapshot(collection(db, 'requests'), (snapshot) => {
-  requests.value = snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }))
-})
+// Real-time subscription to requests
+export const subscribeToRequests = (callback) => {
+  const q = query(
+    collection(db, 'requests'),
+    orderBy('timestamp', 'desc')
+  )
+  
+  return onSnapshot(q, (snapshot) => {
+    const requests = []
+    snapshot.forEach((doc) => {
+      requests.push({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate() || new Date()
+      })
+    })
+    callback(requests)
+  })
+}
 ```
+
+**CRUD Operations Implemented:**
+- ✅ `subscribeToRequests(callback)` - Real-time listener
+- ✅ `createRequest(requestData)` - Add new request
+- ✅ `upvoteRequest(requestId, sessionId)` - Upvote with atomic operations
+- ✅ `updateRequestStatus(requestId, status)` - Update status (for DJ features)
+
+### Service Layer Architecture
+
+```
+src/firebase/
+├── config.js          ✅ Firebase initialization
+├── auth.js            ✅ Authentication service
+└── requests.js        ✅ Request CRUD operations
+
+src/composables/
+├── useAuth.js         ✅ Authentication composable
+└── useRequests.js     ✅ Requests composable with real-time sync
+```
+
+**Design Pattern:**
+- Service layer (`firebase/*.js`) handles Firebase SDK calls
+- Composables (`composables/*.js`) manage Vue reactivity and lifecycle
+- Components use composables, never call Firebase directly
+- Clean separation of concerns
 
 ---
 
@@ -747,15 +870,54 @@ firebase deploy
 
 ## Future Enhancements
 
-### Phase 1: Firebase Integration (In Progress)
+### Phase 1: Authentication & Sessions ✅ COMPLETED
 
-- [ ] Connect to Firestore for real-time data
-- [ ] Implement Firebase Authentication for DJ
-- [ ] Replace mock data with live database queries
-- [ ] Add anonymous auth for session tracking
-- [ ] Implement upvote persistence
+- ✅ Connect to Firestore for real-time data
+- ✅ Implement Firebase Authentication (Anonymous + Email/Password ready)
+- ✅ Replace mock data with live database queries
+- ✅ Add anonymous auth for session tracking
+- ✅ Implement upvote persistence
 
-### Phase 2: Enhanced Features
+### Phase 2: Request CRUD Operations ✅ COMPLETED
+
+- ✅ Real-time Firestore subscription
+- ✅ Create request with Firebase
+- ✅ Upvote with atomic operations
+- ✅ Session-based duplicate prevention
+- ✅ Update request status (ready for DJ features)
+
+### Phase 3: Upvote Persistence ✅ COMPLETED
+
+- ✅ Store `upvoted_by` array in Firestore
+- ✅ Check session ID before allowing upvote
+- ✅ Persist upvoted state across refresh
+- ✅ Real-time upvote sync across clients
+
+### Phase 4: Security Rules (Next)
+
+- [ ] Write Firestore security rules
+- [ ] Protect against unauthorized writes
+- [ ] Enforce upvote duplicate prevention server-side
+- [ ] Protect DJ-only operations
+- [ ] Test rules with Firebase emulator
+
+### Phase 5: Error Handling & Loading States (Next)
+
+- [ ] Add error messages for failed operations
+- [ ] Add retry logic for network errors
+- [ ] Handle offline state gracefully
+- [ ] Add success notifications
+- [ ] Improve loading state UI
+
+### Phase 6: DJ Admin Features (Future)
+
+- [ ] DJ login page/component
+- [ ] Mark requests as "Added to Playlist"
+- [ ] Mark requests as "Played"
+- [ ] Clear completed requests
+- [ ] Protect admin actions with auth checks
+
+### Phase 7: Enhanced Features (Future)
 
 - [ ] Browse pre-loaded dance list (modal tabs)
 - [ ] Search/filter dance library
@@ -786,10 +948,10 @@ firebase deploy
 
 ### Known Issues
 
-1. **Mock Data:** Currently using hardcoded request data
-2. **Session Persistence:** Upvotes don't persist across page refreshes
-3. **ID Generation:** Using simple increment (will switch to Firebase auto-IDs)
-4. **No Backend:** All state is client-side only
+1. **No Security Rules:** Firestore rules not yet implemented (Phase 4)
+2. **Limited Error Handling:** Need better error messages and retry logic (Phase 5)
+3. **No Offline Support:** No handling for offline state yet
+4. **DJ Features Not Implemented:** Admin functionality ready but not built (Phase 6)
 
 ### Code Quality
 
@@ -853,17 +1015,39 @@ firebase deploy
 
 ## Changelog
 
+### v1.1.0 - November 20, 2025 (Current)
+
+**Backend Integration (Phases 1-3):**
+- ✅ Firebase Anonymous Authentication for all users
+- ✅ Firebase Auth UID-based session tracking
+- ✅ Real-time Firestore subscription with `onSnapshot`
+- ✅ Create requests in Firestore with `serverTimestamp()`
+- ✅ Upvote with atomic Firestore operations (`increment` + `arrayUnion`)
+- ✅ Upvote persistence across page refreshes
+- ✅ Duplicate upvote prevention with `upvoted_by` array
+- ✅ Real-time sync across multiple clients
+
+**Architecture:**
+- ✅ Service layer: `firebase/auth.js` and `firebase/requests.js`
+- ✅ Composables: `useAuth.js` and `useRequests.js`
+- ✅ Authentication initialization in `App.vue`
+- ✅ Loading states during auth and data fetch
+
+**Documentation:**
+- ✅ Updated technical documentation with Firebase implementation
+- ✅ Created `FIREBASE_BACKEND_PLAN.md` with 6-phase strategy
+
 ### v1.0.0 - November 20, 2025
 
 **Features:**
 - ✅ Request queue display
-- ✅ Upvoting system
+- ✅ Upvoting system (client-side)
 - ✅ Sort by dance, song, artist, likes, time
 - ✅ New request form (dance name, song, artist)
 - ✅ Time display on requests
 - ✅ Responsive mobile-first UI
 - ✅ Modal overlay for new requests
-- ✅ Session-based upvote tracking
+- ✅ Session-based upvote tracking (localStorage)
 
 **Testing:**
 - ✅ Playwright test suite

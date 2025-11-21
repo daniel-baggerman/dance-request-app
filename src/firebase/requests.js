@@ -94,3 +94,26 @@ export const updateRequestStatus = async (requestId, status) => {
     throw error;
   }
 };
+
+/**
+ * Clear all requests (Admin only)
+ * Deletes all documents in the requests collection
+ */
+export const clearAllRequests = async () => {
+  try {
+    const { getDocs, deleteDoc } = await import('firebase/firestore');
+    
+    const snapshot = await getDocs(requestsCollection);
+    
+    const deletePromises = [];
+    snapshot.forEach((docSnap) => {
+      deletePromises.push(deleteDoc(docSnap.ref));
+    });
+    
+    await Promise.all(deletePromises);
+    console.log(`Cleared ${deletePromises.length} requests from queue`);
+  } catch (error) {
+    console.error('Error clearing all requests:', error);
+    throw error;
+  }
+};

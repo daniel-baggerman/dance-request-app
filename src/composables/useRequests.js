@@ -10,7 +10,6 @@ export function useRequests() {
 
   // Get user ID from Firebase Auth
   const { userId } = useAuth();
-  const sessionId = userId();
 
   onMounted(() => {
     // Subscribe to real-time updates
@@ -70,7 +69,6 @@ export function useRequests() {
     requests,
     loading,
     error,
-    sessionId,
     addRequest,
     handleUpvote,
     isUpvoted
