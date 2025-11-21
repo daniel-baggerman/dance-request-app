@@ -242,34 +242,34 @@ A mobile-first web application that enables line dancers at events to submit son
 
 ### Dance (Pre-loaded List)
 - id (unique identifier)
-- danceName (string) - e.g., "Copperhead Road"
-- songTitle (string) - e.g., "Copperhead Road"
+- dance_name (string) - e.g., "Copperhead Road"
+- song_title (string) - e.g., "Copperhead Road"
 - artist (string) - e.g., "Steve Earle"
 - difficulty (optional: beginner/intermediate/advanced) - Future
 - style (optional: country/pop/Latin/etc.) - Future
-- stepSheetUrl (optional link) - Future
-- createdAt (datetime)
+- step_sheet_url (optional link) - Future
+- created_at (datetime)
 
 ### Request
 - id (unique identifier)
-- danceId (optional reference to Dance - null if custom request)
-- customDanceName (optional string - for custom requests)
-- customSongTitle (optional string - for custom requests)
-- customArtist (optional string - for custom requests)
+- dance_id (optional reference to Dance - null if custom request)
+- dance_name (string - dance name for display)
+- song_title (string - song title for display)
+- artist (optional string - artist name)
 - timestamp (datetime)
 - status (pending/added_to_playlist/played)
-- upvoteCount (number, default 0)
-- upvotedBy (array of session IDs to prevent duplicate upvotes)
-- createdAt (datetime)
-- completedAt (optional datetime)
+- upvote_count (number, default 0)
+- upvoted_by (array of session IDs to prevent duplicate upvotes)
+- created_at (datetime)
+- completed_at (optional datetime)
 
 ### Event (Future)
 - id (unique identifier)
 - name (string)
 - date (datetime)
-- startTime (datetime)
-- endTime (optional datetime)
-- isActive (boolean)
+- start_time (datetime)
+- end_time (optional datetime)
+- is_active (boolean)
 
 ## Security Considerations
 - DJ admin access protected with authentication
@@ -277,6 +277,14 @@ A mobile-first web application that enables line dancers at events to submit son
 - Input validation and sanitization
 - HTTPS for all communications
 - Session management for DJ authentication
+
+## Coding Standards
+
+### Naming Conventions
+- **Field Names**: Use snake_case for all data model field names (e.g., `dance_name`, `song_title`, `upvote_count`)
+- **Variables**: Use camelCase for JavaScript/Vue variables and functions (e.g., `selectedDance`, `handleUpvote`)
+- **Components**: Use PascalCase for Vue component names (e.g., `RequestCard`, `NewRequestModal`)
+- **Consistency**: Maintain consistent naming across frontend, backend, and database
 
 ## Key Technical Requirements
 

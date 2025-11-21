@@ -69,4 +69,18 @@ test.describe('Dancer View - Request Queue', () => {
     // Take mobile screenshot
     await page.screenshot({ path: 'tests/screenshots/mobile-view.png', fullPage: true });
   });
+
+  test('should sort requests when selecting sort option', async ({ page }) => {
+    await page.goto('/');
+
+    // Open sort menu
+    await page.getByRole('button', { name: 'Sort' }).click();
+    // Choose Dance Name option
+    await page.getByRole('button', { name: 'Dance Name' }).click();
+
+    // Collect all dance name headings
+    const headings = await page.locator('h3').allTextContents();
+    const sorted = [...headings].sort((a, b) => a.localeCompare(b));
+    expect(headings).toEqual(sorted);
+  });
 });
