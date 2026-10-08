@@ -66,8 +66,8 @@ The app runs at <http://localhost:5173>. The admin dashboard is at <http://local
 The repo is configured for the `dance-request-app` Firebase project. To point it at your own:
 
 1. In the Firebase console, add a web app to your project and copy its config object.
-2. Replace the `firebaseConfig` values in [`src/firebase/config.js`](src/firebase/config.js).
-3. Update the project ID in [`.firebaserc`](.firebaserc).
+2. Replace the `firebaseConfig` values in [`src/firebase/config.js`](https://github.com/daniel-baggerman/dance-request-app/blob/main/src/firebase/config.js).
+3. Update the project ID in [`.firebaserc`](https://github.com/daniel-baggerman/dance-request-app/blob/main/.firebaserc).
 
 Firebase web config values are not secrets; access is controlled by Firestore security rules.
 
@@ -159,7 +159,7 @@ This is an early-stage project. Before relying on it at a real event:
 
 ## Roadmap
 
-Planned features from the [project outline](docs/Project%20Outline.md):
+Planned features from the [project outline](https://github.com/daniel-baggerman/dance-request-app/blob/main/docs/Project%20Outline.md):
 
 - DJ request management: mark requests as "added to playlist" or "played"
 - Dance library upload via CSV, with dancers picking from the list
@@ -172,9 +172,9 @@ Planned features from the [project outline](docs/Project%20Outline.md):
 
 ## Documentation
 
-More detail lives in [`docs/`](docs):
+More detail lives in [`docs/`](https://github.com/daniel-baggerman/dance-request-app/tree/main/docs):
 
-- [Project Outline](docs/Project%20Outline.md): goals, feature scope, and phased roadmap
-- [Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md): architecture, components, and state management
-- [Firebase Backend Plan](docs/FIREBASE_BACKEND_PLAN.md): Firestore design and backend integration
-- [Setup Guide](docs/SETUP.md): first-time environment setup
+- [Project Outline](https://github.com/daniel-baggerman/dance-request-app/blob/main/docs/Project%20Outline.md): goals, feature scope, and phased roadmap
+- [Technical Documentation](https://github.com/daniel-baggerman/dance-request-app/blob/main/docs/TECHNICAL_DOCUMENTATION.md): architecture, components, and state management
+- [Firebase Backend Plan](https://github.com/daniel-baggerman/dance-request-app/blob/main/docs/FIREBASE_BACKEND_PLAN.md): Firestore design and backend integration
+- [Setup Guide](https://github.com/daniel-baggerman/dance-request-app/blob/main/docs/SETUP.md): first-time environment setup
