@@ -152,9 +152,8 @@ All requests live in a single Firestore collection, `requests`:
 
 This is an early-stage project. Before relying on it at a real event:
 
-- **Admin access is client-side only.** The admin PIN is checked in the browser and is visible in the source, so it is not real protection. The plan is to switch the DJ to Firebase email/password sign-in (helpers already exist in `src/firebase/auth.js`).
+- **Admin access is client-side only.** The plan is to switch the DJ to Firebase email/password sign-in (helpers already exist in `src/firebase/auth.js`).
 - **No Firestore security rules in the repo.** Rules should restrict deleting requests to the DJ and limit each user to one like per request on the server side, not just in the UI.
-- **Some Playwright tests are out of date** with the current UI and need updating.
 
 ---
 
